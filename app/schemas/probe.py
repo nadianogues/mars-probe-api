@@ -3,6 +3,16 @@ from pydantic import BaseModel, Field
 from app.models.probe import Direction
 
 
+class MoveProbeRequest(BaseModel):
+    """Payload to send movement commands to a probe."""
+
+    commands: str = Field(
+        ...,
+        pattern=r"^[MLR]+$",
+        description="Sequence of commands: M (move), L (turn left), R (turn right)",
+    )
+
+
 class LaunchProbeRequest(BaseModel):
     """Payload to launch a probe and define the plateau boundaries."""
 
