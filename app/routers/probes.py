@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.schemas.probe import LaunchProbeRequest, MoveProbeRequest, ProbeResponse
+from app.schemas.probe import LaunchProbeRequest, MoveProbeRequest, ProbeListResponse, ProbeResponse
 from app.services import probe_service
 
 router = APIRouter()
@@ -24,3 +24,15 @@ def move_probe(probe_id: str, body: MoveProbeRequest) -> ProbeResponse:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return ProbeResponse(id=probe.id, x=probe.x, y=probe.y, direction=probe.direction)
+
+
+@router.get("", response_model=ProbeListResponse)
+def list_probes() -> ProbeListResponse:
+    """Return all probes currently deployed on the plateau."""
+    probes = probe_service.get_all()
+    return ProbeListResponse(
+        probes=[
+            ProbeResponse(id=p.id, x=p.x, y=p.y, direction=p.direction)
+            for p in probes
+        ]
+    )

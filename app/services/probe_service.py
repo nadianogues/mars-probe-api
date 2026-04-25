@@ -58,6 +58,14 @@ def list_probes() -> list[Probe]:
     return list(_probes.values())
 
 
+def get_all() -> list[Probe]:
+    """Return all probes currently stored in memory.
+
+    Alias for list_probes — exposed as the primary read operation for the list endpoint.
+    """
+    return list_probes()
+
+
 def move_probe(probe: Probe, commands: str) -> Probe:
     """Execute a sequence of movement commands on a probe.
 

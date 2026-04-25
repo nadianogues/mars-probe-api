@@ -28,3 +28,9 @@ class ProbeResponse(BaseModel):
     x: int
     y: int
     direction: Direction
+
+
+class ProbeListResponse(BaseModel):
+    """List of all probes currently deployed on the plateau."""
+
+    probes: list[ProbeResponse]
