@@ -43,20 +43,20 @@ mars-probe-api/
 ```
 HTTP Request
      ↓
-routers/probes.py       → Recebe e valida a requisição (Pydantic)
+routers/probes.py         → Recebe e valida a requisição (Pydantic)
      ↓
 services/probe_service.py → Executa a lógica de negócio
      ↓
-models/probe.py          → Representa o estado da sonda
+models/probe.py           → Representa o estado da sonda
      ↓
-HTTP Response            → JSON serializado automaticamente pelo FastAPI
+HTTP Response             → JSON serializado automaticamente pelo FastAPI
 ```
 
-### 🎯 Princípios Aplicados
+---
 
-- **Separação entre `models` e `schemas`:** `models` representa o domínio interno, `schemas` representa o contrato com o cliente HTTP
-- **Single Responsibility:** Cada arquivo tem uma única responsabilidade
-- **Clean Code:** Código legível, com type hints e docstrings em todas as funções
+## 💾 Armazenamento
+
+O projeto utiliza **armazenamento em memória** (dicionário Python). Essa escolha foi intencional — o desafio não exige persistência e mantém o foco na arquitetura e na lógica de negócio. Em produção, a camada de serviço poderia ser facilmente adaptada para usar PostgreSQL ou Redis sem alterar os endpoints.
 
 ---
 
@@ -98,8 +98,8 @@ A API estará disponível em `http://localhost:8000`.
 
 Com a aplicação rodando, acesse:
 
-- **Swagger UI:** `http://localhost:8000/docs`
-- **ReDoc:** `http://localhost:8000/redoc`
+- **Swagger UI:** `http://localhost:8000/docs` — testar endpoints interativamente
+- **ReDoc:** `http://localhost:8000/redoc` — documentação detalhada
 
 ---
 
@@ -182,6 +182,30 @@ Resposta:
 
 ---
 
+## 🗺️ Funcionamento do Plateau
+
+A sonda sempre inicia em `(0, 0)` no canto inferior esquerdo. O plateau é definido pelo canto superior direito `(x, y)`:
+
+```
+Y
+5 +---+---+---+---+---+---+(5,5)
+  |   |   |   |   |   |   |
+4 +---+---+---+---+---+---+
+  |   |   |   |   |   |   |
+3 +---+---+---+---+---+---+
+  |   |   |   |   |   |   |
+2 +---+---+---+---+---+---+
+  |   |   |   |   |   |   |
+1 +---+---+---+---+---+---+
+  |   | > |   |   |   |   |   ← após "MRM" (1,1,EAST)
+0 +---+---+---+---+---+---+
+  0   1   2   3   4   5   X
+```
+
+Se qualquer comando da sequência fizer a sonda sair dos limites, **nenhum comando é executado** e a API retorna erro `400`.
+
+---
+
 ## 🎮 Comandos de Movimento
 
 | Comando | Descrição |
@@ -190,14 +214,65 @@ Resposta:
 | `L` | Rotaciona 90° para a esquerda (sem mover) |
 | `R` | Rotaciona 90° para a direita (sem mover) |
 
-### Tabela de Rotação
-
 | Direção Atual | L | R |
 |---|---|---|
 | NORTH | WEST | EAST |
 | EAST | NORTH | SOUTH |
 | SOUTH | EAST | WEST |
 | WEST | SOUTH | NORTH |
+
+---
+
+## ⚠️ Exemplos de Erro
+
+### Sonda não encontrada (404)
+```bash
+curl -X POST "http://localhost:8000/probes/id-inexistente/commands" \
+     -H "Content-Type: application/json" \
+     -d '{"commands": "M"}'
+```
+```json
+{ "detail": "Probe not found." }
+```
+
+### Movimento fora dos limites (400)
+```bash
+curl -X POST "http://localhost:8000/probes/{id}/commands" \
+     -H "Content-Type: application/json" \
+     -d '{"commands": "LLM"}'
+```
+```json
+{ "detail": "Command 'M' at (0, 0) facing SOUTH would move the probe out of the plateau bounds." }
+```
+
+### Dados inválidos (422)
+```bash
+curl -X POST "http://localhost:8000/probes" \
+     -H "Content-Type: application/json" \
+     -d '{"x": 5, "y": 5, "direction": "INVALIDA"}'
+```
+```json
+{ "detail": "Input should be 'NORTH', 'EAST', 'SOUTH' or 'WEST'" }
+```
+
+---
+
+## 💡 Exemplos com cURL
+
+```bash
+# 1. Lançar uma sonda
+curl -X POST "http://localhost:8000/probes" \
+     -H "Content-Type: application/json" \
+     -d '{"x": 5, "y": 5, "direction": "NORTH"}'
+
+# 2. Mover a sonda (substitua {id} pelo id retornado)
+curl -X POST "http://localhost:8000/probes/{id}/commands" \
+     -H "Content-Type: application/json" \
+     -d '{"commands": "MRM"}'
+
+# 3. Listar todas as sondas
+curl -X GET "http://localhost:8000/probes"
+```
 
 ---
 
@@ -214,14 +289,74 @@ pytest -v
 pytest --cov=app
 ```
 
-O projeto possui **12 testes** cobrindo todos os endpoints e casos de erro:
+O projeto possui **15 testes** cobrindo todos os endpoints e casos de erro:
 
 - ✅ Lançar sonda com configuração válida
+- ✅ Garantir que cada sonda recebe um id único
+- ✅ Rejeitar direção inválida
+- ✅ Rejeitar plateau com tamanho inválido
 - ✅ Mover sonda com sequência válida
-- ✅ Rejeitar movimento que ultrapassa os limites do planalto
+- ✅ Garantir que sonda não move após sequência inválida
 - ✅ Retornar 404 para sonda inexistente
 - ✅ Rejeitar comandos inválidos
+- ✅ Acumular movimentos em sequências múltiplas
 - ✅ Listar sondas (vazia, uma, múltiplas)
+- ✅ Rejeitar movimento fora dos limites em todas as direções (NORTH, EAST, WEST)
+
+---
+
+## ⚙️ Solução de Problemas
+
+### Erro `unrecognized arguments: --cov=app`
+O plugin de cobertura não está instalado. Ative o ambiente virtual e instale:
+```bash
+# Windows
+.venv\Scripts\activate
+
+# Linux / macOS
+source .venv/bin/activate
+
+# Instalar o plugin
+pip install pytest-cov
+```
+
+### Erro `command not found: uvicorn` ou `pytest`
+O ambiente virtual não está ativado. Ative antes de rodar qualquer comando:
+```bash
+# Windows
+.venv\Scripts\activate
+
+# Linux / macOS
+source .venv/bin/activate
+```
+
+### Erro `Port 8000 already in use`
+Outra aplicação está usando a porta. Encerre o processo atual e tente novamente:
+
+```bash
+# Se estiver rodando local
+Ctrl+C
+
+# Se estiver rodando no Docker
+docker compose down
+```
+
+Ou troque a porta:
+```bash
+uvicorn app.main:app --reload --port 8001
+```
+
+### Erro `ModuleNotFoundError`
+As dependências não foram instaladas. Rode:
+```bash
+pip install -r requirements.txt
+```
+
+### Docker: `docker compose` não reconhecido
+Versões antigas do Docker usam `docker-compose` (com hífen):
+```bash
+docker-compose up --build
+```
 
 ---
 
@@ -234,22 +369,22 @@ O projeto possui **12 testes** cobrindo todos os endpoints e casos de erro:
 | Pydantic | Validação de dados |
 | Uvicorn | Servidor ASGI |
 | Pytest | Testes automatizados |
-| Poetry | Gerenciamento de dependências (fonte da verdade) |
-| requirements.txt | Gerado pelo Poetry para compatibilidade sem Poetry instalado |
+| Poetry | Gerenciamento de dependências |
 | Docker | Containerização |
 
 ---
 
 ## 🌿 Git Flow
 
-O projeto foi desenvolvido seguindo Git Flow com branches separadas por feature:
+O projeto foi desenvolvido com branches separadas por feature:
 
 ```
 main
  └── develop
       ├── feat/launch-probe
       ├── feat/move-probe
-      └── feat/list-probes
+      ├── feat/list-probes
+      └── feat/improve-tests
 ```
 
 Cada branch foi mergeada na `develop` após os testes passarem, e ao final mergeada na `main`.
