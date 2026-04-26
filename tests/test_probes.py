@@ -94,3 +94,26 @@ def test_list_probes_multiple(client):
     response = client.get("/probes")
     assert response.status_code == 200
     assert len(response.json()["probes"]) == 2
+
+
+# --- out-of-bounds (todas as direções) ---
+
+
+def test_move_probe_out_of_bounds_north(client):
+    probe_id = client.post("/probes", json={"x": 5, "y": 5, "direction": "NORTH"}).json()["id"]
+    client.post(f"/probes/{probe_id}/commands", json={"commands": "MMMMM"})
+    response = client.post(f"/probes/{probe_id}/commands", json={"commands": "M"})
+    assert response.status_code == 400
+
+
+def test_move_probe_out_of_bounds_east(client):
+    probe_id = client.post("/probes", json={"x": 5, "y": 5, "direction": "EAST"}).json()["id"]
+    client.post(f"/probes/{probe_id}/commands", json={"commands": "MMMMM"})
+    response = client.post(f"/probes/{probe_id}/commands", json={"commands": "M"})
+    assert response.status_code == 400
+
+
+def test_move_probe_out_of_bounds_west(client):
+    probe_id = client.post("/probes", json={"x": 5, "y": 5, "direction": "WEST"}).json()["id"]
+    response = client.post(f"/probes/{probe_id}/commands", json={"commands": "M"})
+    assert response.status_code == 400
